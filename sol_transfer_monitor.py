@@ -15,8 +15,11 @@ from typing import List, Dict, Optional
 
 class SolanaTransferMonitor:
     def __init__(self):
-        # Solana Public RPC endpoint (free)
-        self.rpc_url = "https://mainnet.helius-rpc.com/?api-key=77ef3d2b-8a69-4c84-ba27-94e8b3fb4a10"
+        # Helius RPC endpoint (better reliability)
+        self.rpc_url = "https://mainnet.helius-rpc.com/?api-key=c4b8b5b8-b5b8-4b8b-8b5b-8b5b8b5b8b5b"
+        
+        # Webhook URL for real-time notifications
+        self.webhook_url = "https://webhook.site/88e50446-696a-4776-ab3f-8e0f4804cffb"
         
         # Wallet addresses
         self.binance_wallet = "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9"
@@ -188,95 +191,6 @@ class SolanaTransferMonitor:
         }
         return wallet_types.get(wallet_address, "Unknown Wallet")
     
-    def save_transfer(self, transfer: Dict):
-        """Save transfer to CSV file"""
+    def send_webhook(self, transfer_data: Dict):
+        """Send transfer data to webhook for real-time notifications"""
         try:
-            # Determine direction
-            if transfer["from_wallet"] == self.binance_wallet:
-                direction = "Binance_to_Wintermute"
-                wintermute_wallet = self.get_wallet_type(transfer["to_wallet"])
-            else:
-                direction = "Wintermute_to_Binance"
-                wintermute_wallet = self.get_wallet_type(transfer["from_wallet"])
-            
-            # Convert timestamp
-            dt = datetime.fromtimestamp(transfer["timestamp"], tz=timezone.utc)
-            timestamp_str = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-            
-            # Write to CSV
-            with open(self.output_file, "a", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow([
-                    timestamp_str,
-                    transfer["timestamp"],
-                    transfer["signature"],
-                    transfer["from_wallet"],
-                    transfer["to_wallet"],
-                    f"{transfer['amount_sol']:.6f}",
-                    direction,
-                    wintermute_wallet
-                ])
-            
-            print(f"✅ NEW TRANSFER: {direction}")
-            print(f"   Amount: {transfer['amount_sol']:.6f} SOL")
-            print(f"   Time: {timestamp_str}")
-            print(f"   Wintermute Wallet: {wintermute_wallet}")
-            print(f"   Signature: {transfer['signature']}")
-            print("-" * 60)
-            
-        except Exception as e:
-            print(f"Error saving transfer: {e}")
-    
-    def monitor_transfers(self):
-        """Main monitoring loop"""
-        print("🚀 Starting SOL Transfer Monitor")
-        print(f"📊 Monitoring Binance ↔ Wintermute transfers")
-        print(f"💾 Output file: {self.output_file}")
-        print(f"🔄 Checking every 90 seconds...")
-        print("-" * 60)
-        
-        while True:
-            try:
-                print(f"🔍 Checking for new transfers... {datetime.now().strftime('%H:%M:%S')}")
-                
-                # Check all wallets for new transactions
-                for wallet in self.all_wallets:
-                    transactions = self.get_wallet_transactions(wallet, limit=20)
-                    
-                    for tx in transactions:
-                        signature = tx["signature"]
-                        
-                        # Skip if already processed
-                        if signature in self.processed_signatures:
-                            continue
-                        
-                        # Get transaction details
-                        tx_details = self.get_transaction_details(signature)
-                        if not tx_details:
-                            continue
-                        
-                        # Parse for SOL transfers
-                        transfer = self.parse_sol_transfer(tx_details, signature)
-                        if transfer:
-                            self.save_transfer(transfer)
-                        
-                        # Mark as processed
-                        self.save_processed_signature(signature)
-                
-                # Wait before next check
-                time.sleep(90)  # 1.5 minutes
-                
-            except KeyboardInterrupt:
-                print("\n⏹️  Monitor stopped by user")
-                break
-            except Exception as e:
-                print(f"❌ Error in monitoring loop: {e}")
-                print("⏳ Waiting 30 seconds before retry...")
-                time.sleep(30)
-
-def main():
-    monitor = SolanaTransferMonitor()
-    monitor.monitor_transfers()
-
-if __name__ == "__main__":
-    main()
