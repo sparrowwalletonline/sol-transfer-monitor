@@ -194,3 +194,139 @@ class SolanaTransferMonitor:
     def send_webhook(self, transfer_data: Dict):
         """Send transfer data to webhook for real-time notifications"""
         try:
+            # Prepare webhook payload
+            webhook_payload = {
+                "event": "whale_transfer",
+                "timestamp": datetime.now().isoformat(),
+                "transfer": transfer_data,
+                "alert_level": "MEGA_WHALE" if transfer_data["amount_sol"] >= 1000 else "WHALE"
+            }
+            
+            # Send webhook
+            response = requests.post(
+                self.webhook_url,
+                json=webhook_payload,
+                headers={"Content-Type": "application/json"},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                print(f"🔗 Webhook sent successfully")
+            else:
+                print(f"⚠️  Webhook failed: {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ Webhook error: {e}")
+
+    def save_transfer(self, transfer: Dict):
+        """Save transfer to CSV file and send webhook"""
+        try:
+            # Determine direction
+            if transfer["from_wallet"] == self.binance_wallet:
+                direction = "Binance_to_Wintermute"
+                wintermute_wallet = self.get_wallet_type(transfer["to_wallet"])
+            else:
+                direction = "Wintermute_to_Binance"
+                wintermute_wallet = self.get_wallet_type(transfer["from_wallet"])
+            
+            # Convert timestamp
+            dt = datetime.fromtimestamp(transfer["timestamp"], tz=timezone.utc)
+            timestamp_str = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+            
+            # Prepare transfer data for webhook
+            transfer_data = {
+                "signature": transfer["signature"],
+                "from_wallet": transfer["from_wallet"],
+                "to_wallet": transfer["to_wallet"],
+                "from_wallet_name": self.get_wallet_type(transfer["from_wallet"]),
+                "to_wallet_name": self.get_wallet_type(transfer["to_wallet"]),
+                "amount_sol": round(transfer["amount_sol"], 6),
+                "direction": direction,
+                "timestamp": timestamp_str,
+                "unix_timestamp": transfer["timestamp"],
+                "wintermute_wallet": wintermute_wallet
+            }
+            
+            # Write to CSV
+            with open(self.output_file, "a", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    timestamp_str,
+                    transfer["timestamp"],
+                    transfer["signature"],
+                    transfer["from_wallet"],
+                    transfer["to_wallet"],
+                    f"{transfer['amount_sol']:.6f}",
+                    direction,
+                    wintermute_wallet
+                ])
+            
+            # Send webhook notification
+            self.send_webhook(transfer_data)
+            
+            # Console output
+            print(f"🐋 NEW WHALE TRANSFER: {direction}")
+            print(f"   💰 Amount: {transfer['amount_sol']:.6f} SOL")
+            print(f"   ⏰ Time: {timestamp_str}")
+            print(f"   🏦 Wintermute Wallet: {wintermute_wallet}")
+            print(f"   📝 Signature: {transfer['signature']}")
+            print(f"   🔗 Webhook: Sent to TradingView")
+            print("-" * 60)
+            
+        except Exception as e:
+            print(f"Error saving transfer: {e}")
+    
+    def monitor_transfers(self):
+        """Main monitoring loop"""
+        print("🚀 Starting SOL Transfer Monitor")
+        print(f"📊 Monitoring Binance ↔ Wintermute transfers")
+        print(f"💾 Output file: {self.output_file}")
+        print(f"🔗 Webhook URL: {self.webhook_url}")
+        print(f"🔄 Checking every 90 seconds...")
+        print("-" * 60)
+        
+        while True:
+            try:
+                print(f"🔍 Checking for new transfers... {datetime.now().strftime('%H:%M:%S')}")
+                
+                # Check all wallets for new transactions
+                for wallet in self.all_wallets:
+                    transactions = self.get_wallet_transactions(wallet, limit=20)
+                    
+                    for tx in transactions:
+                        signature = tx["signature"]
+                        
+                        # Skip if already processed
+                        if signature in self.processed_signatures:
+                            continue
+                        
+                        # Get transaction details
+                        tx_details = self.get_transaction_details(signature)
+                        if not tx_details:
+                            continue
+                        
+                        # Parse for SOL transfers
+                        transfer = self.parse_sol_transfer(tx_details, signature)
+                        if transfer:
+                            self.save_transfer(transfer)
+                        
+                        # Mark as processed
+                        self.save_processed_signature(signature)
+                
+                # Wait before next check
+                time.sleep(90)  # 1.5 minutes
+                
+            except KeyboardInterrupt:
+                print("\n⏹️  Monitor stopped by user")
+                break
+            except Exception as e:
+                print(f"❌ Error in monitoring loop: {e}")
+                print("⏳ Waiting 30 seconds before retry...")
+                time.sleep(30)
+
+def main():
+    monitor = SolanaTransferMonitor()
+    monitor.monitor_transfers()
+
+if __name__ == "__main__":
+    main()
