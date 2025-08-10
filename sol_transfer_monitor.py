@@ -22,7 +22,7 @@ class SolanaTransferMonitor:
         self.webhook_url = "https://webhook.site/88e50446-696a-4776-ab3f-8e0f4804cffb"
         
         # TEST MODE - Set to True to send fake transfers every 2 minutes
-        self.test_mode = True
+        self.test_mode = False
         self.test_counter = 0
         
         # Wallet addresses
