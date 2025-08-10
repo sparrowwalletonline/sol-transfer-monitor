@@ -16,7 +16,7 @@ from typing import List, Dict, Optional
 class SolanaTransferMonitor:
     def __init__(self):
         # Solana Public RPC endpoint (free)
-        self.rpc_url = "https://api.mainnet-beta.solana.com"
+        self.rpc_url = "https://mainnet.helius-rpc.com/?api-key=77ef3d2b-8a69-4c84-ba27-94e8b3fb4a10"
         
         # Wallet addresses
         self.binance_wallet = "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9"
